@@ -6,7 +6,7 @@ from modules.parser.instance_parser import Instance
 from modules.parser.load_balancer import LoadBalancer, BackendSet, Backend, Listener
 from modules.parser.nsg import NSG, NSGSecurityRule
 from dotenv import load_dotenv
-# from tabulate import tabulate
+from tabulate import tabulate
 
 # from parser import parse_load_balancers, parse_backend_sets, parse_backends
 
@@ -176,21 +176,21 @@ def parse_nsgs(tfstate_data):
 
     return list(nsgs.values())
 
-# def print_nsg_table(nsgs):
-#     table_data = []
-#     for nsg in nsgs:
-#         for rule in nsg.security_rules:
-#             table_data.append([
-#                 nsg.name,
-#                 rule.id,
-#                 rule.direction,
-#                 rule.protocol,
-#                 rule.source,
-#                 rule.destination,
-#                 rule.description
-#             ])
-#     headers = ["NSG Name", "Rule ID", "Direction", "Protocol", "Source", "Destination", "Description"]
-#     print(tabulate(table_data, headers=headers, tablefmt="grid"))
+def print_nsg_table(nsgs):
+    table_data = []
+    for nsg in nsgs:
+        for rule in nsg.security_rules:
+            table_data.append([
+                nsg.name,
+                rule.id,
+                rule.direction,
+                rule.protocol,
+                rule.source,
+                rule.destination,
+                rule.description
+            ])
+    headers = ["NSG Name", "Rule ID", "Direction", "Protocol", "Source", "Destination", "Description"]
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 
 def classify_subnet(subnet_name):
@@ -206,6 +206,10 @@ def classify_subnet(subnet_name):
     else:
         return "etc"
 
+def resolve_nsg_name(source: str) -> str:
+    if source and source.startswith("ocid1.networksecuritygroup"):
+        return NSG.get_name_by_id(source)
+    return source
 
 def chunked(items, size):
     return [items[i:i + size] for i in range(0, len(items), size)]
@@ -309,14 +313,23 @@ def render_diagram(vcns, nsgs):
                                         row[0]
 
         # NSG 정보는 VCN 외부에 별도 표시
+        # nsg_info = Firewall("\n".join([
+        #     f"[{nsg.name}]\n" + "\n".join([
+        #         f"  {rule.direction:<2} {rule.source:<18} {rule.get_port_range_str()}"
+        #         for rule in nsg.security_rules
+        #         if rule.source is not None
+        #     ]) + "\n"
+        #     for nsg in nsgs
+        # ]).rstrip())
         nsg_info = Firewall("\n".join([
             f"[{nsg.name}]\n" + "\n".join([
-                f"  {rule.direction:<2} {rule.source:<18} {rule.get_port_range_str()}"
+                f"  {rule.direction:<2} {resolve_nsg_name(rule.source):<18} {rule.get_port_range_str()}"
                 for rule in nsg.security_rules
                 if rule.source is not None
             ]) + "\n"
             for nsg in nsgs
         ]).rstrip())
+
         
         if gw_first_nodes:
             # nsg_info >> Edge(color="red", style="bold") >> gw_first_nodes[0]
