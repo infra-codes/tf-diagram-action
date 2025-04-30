@@ -1,12 +1,10 @@
 import json
 import os
-from modules.parser.vcn_parser import VCN
-from modules.parser.subnet_parser import Subnet
-from modules.parser.instance_parser import Instance
-from modules.parser.load_balancer import LoadBalancer, BackendSet, Backend, Listener
-from modules.parser.nsg import NSG, NSGSecurityRule
+from modules.oci_parser.nsg import NSG, NSGSecurityRule
 from dotenv import load_dotenv
-from tabulate import tabulate
+from modules.oci_parser import parser
+from datetime import datetime
+# from tabulate import tabulate
 
 # from parser import parse_load_balancers, parse_backend_sets, parse_backends
 
@@ -27,154 +25,13 @@ DEBUG = False
 CHUNK_SIZE = 2
 
 load_dotenv()
-tfstate_path = os.getenv("TFSTATE_PATH")
+# tfstate_path = os.getenv("TFSTATE_PATH")
 diagram_filename = os.getenv("DIAGRAM_FILENAME")
 
-def parse_vcns(tfstate_data):
-    vcn_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
+timestamp = datetime.now().strftime("%Y%m%d%H")
+diagram_filename = f"{diagram_filename}_{timestamp}"
 
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_core_vcn":
-                vcn = VCN.from_tfstate(resource)
-                vcn_list.append(vcn)
-
-    return vcn_list
-
-def parse_subnets(tfstate_data):
-    subnet_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_core_subnet":
-                subnet = Subnet.from_tfstate(resource)
-                subnet_list.append(subnet)
-
-    return subnet_list
-
-def parse_instances(tfstate_data):
-    instance_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_core_instance":
-                instance = Instance.from_tfstate(resource)
-                instance_list.append(instance)
-
-    return instance_list
-
-def parse_load_balancers(tfstate_data):
-    load_balancer_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            # print(f"Checking resource: {resource}")  # 디버깅 출력
-            if resource.get("type") == "oci_load_balancer":
-                load_balancer = LoadBalancer.from_tfstate(resource)
-                load_balancer_list.append(load_balancer)
-
-    return load_balancer_list
-
-def parse_backend_sets(tfstate_data):
-    backend_set_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            # print(f"Checking resource: {resource}")  # 디버깅 출력
-            if resource.get("type") == "oci_load_balancer_backend_set":  # 수정된 부분
-                backend_set = BackendSet.from_tfstate(resource)
-                backend_set_list.append(backend_set)
-
-    return backend_set_list
-
-def parse_backends(tfstate_data, backend_sets):
-    backend_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            # 디버깅 출력
-            # print(f"Checking resource: {resource}")  # 리소스 확인
-            if resource.get("type") == "oci_load_balancer_backend":  # Backend 리소스 타입 확인
-                # BackendSet 이름을 찾기
-                backendset_name = None
-                for backend_set in backend_sets:
-                    if backend_set.name in resource['values']['backendset_name']:
-                        backendset_name = backend_set.name
-                        break
-                
-                # Backend 객체 생성
-                backend = Backend.from_tfstate(resource, backendset_name)  # BackendSet 이름 전달
-                backend_list.append(backend)
-
-                # Backend 객체가 잘 생성되었는지 확인
-                # print(f"Created Backend: {backend.name} (ID: {backend.id}, BackendSet: {backend.backendset_name})")
-
-    return backend_list
-
-def parse_listeners(tfstate_data):
-    listener_list = []
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_load_balancer_listener":
-                listener = Listener.from_tfstate(resource)
-                listener_list.append(listener)
-
-    return listener_list
-
-def parse_nsgs(tfstate_data):
-    NSG.reset()  # 이전 상태 클리어
-    nsgs = {}
-    root_module = tfstate_data.get("values", {}).get("root_module", {})
-    modules = [root_module] + root_module.get("child_modules", [])
-
-    # 먼저 NSG 객체들을 생성
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_core_network_security_group":
-                nsg = NSG.from_tfstate(resource)
-                nsgs[nsg.id] = nsg
-
-    # NSG 규칙들을 파싱하여 해당하는 NSG에 추가
-    for module in modules:
-        for resource in module.get("resources", []):
-            if resource.get("type") == "oci_core_network_security_group_security_rule":
-                values = resource.get("values", {})
-
-                if values.get("direction") == "INGRESS" :
-                    direction = "IN"
-                else : 
-                    direction = "E"
-
-                rule = NSGSecurityRule(
-                    id=values.get("id"),
-                    # direction=values.get("direction"),
-                    direction=direction,
-                    protocol=values.get("protocol"),
-                    source=values.get("source"),
-                    destination=values.get("destination"),
-                    description=values.get("description"),
-                    tcp_options=values.get("tcp_options", [{}])[0] if values.get("tcp_options") else None
-                )
-                nsg_id = values.get("network_security_group_id")
-                if nsg_id in nsgs:
-                    nsgs[nsg_id].add_security_rule(rule)
-
-    return list(nsgs.values())
+cloud_provider = os.getenv("CLOUD_PROVIDER")
 
 def print_nsg_table(nsgs):
     table_data = []
@@ -190,7 +47,7 @@ def print_nsg_table(nsgs):
                 rule.description
             ])
     headers = ["NSG Name", "Rule ID", "Direction", "Protocol", "Source", "Destination", "Description"]
-    print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    # print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 
 def classify_subnet(subnet_name):
@@ -312,15 +169,6 @@ def render_diagram(vcns, nsgs):
                                     elif len(row) == 1:
                                         row[0]
 
-        # NSG 정보는 VCN 외부에 별도 표시
-        # nsg_info = Firewall("\n".join([
-        #     f"[{nsg.name}]\n" + "\n".join([
-        #         f"  {rule.direction:<2} {rule.source:<18} {rule.get_port_range_str()}"
-        #         for rule in nsg.security_rules
-        #         if rule.source is not None
-        #     ]) + "\n"
-        #     for nsg in nsgs
-        # ]).rstrip())
         nsg_info = Firewall("\n".join([
             f"[{nsg.name}]\n" + "\n".join([
                 f"  {rule.direction:<2} {resolve_nsg_name(rule.source):<18} {rule.get_port_range_str()}"
@@ -335,26 +183,8 @@ def render_diagram(vcns, nsgs):
             # nsg_info >> Edge(color="red", style="bold") >> gw_first_nodes[0]
             nsg_info >> Edge(color="transparent", minlen="2") >> gw_first_nodes[0]
 
-def main():
-    tfstate_path = os.getenv("TFSTATE_PATH")	
-    #tfstate_path = os.path.join("data", "v2-heal.json")
 
-    if not os.path.exists(tfstate_path):
-        print(f"❌ tfstate 파일이 존재하지 않습니다: {tfstate_path}")
-        return
-
-    with open(tfstate_path, "r") as f:
-        tfstate = json.load(f)
-
-    vcns = parse_vcns(tfstate)
-    subnets = parse_subnets(tfstate)
-    instances = parse_instances(tfstate)
-    load_balancers = parse_load_balancers(tfstate)
-    backend_sets = parse_backend_sets(tfstate)
-    backends = parse_backends(tfstate, backend_sets)
-    listeners = parse_listeners(tfstate)
-    nsgs = parse_nsgs(tfstate)
-
+def asset_mapping(vcns, subnets, instances, load_balancers, backends, backend_sets, listeners, nsgs):
     # VCN 연결
     vcn_map = {vcn.id: vcn for vcn in vcns}
     for subnet in subnets:
@@ -400,10 +230,28 @@ def main():
     #     if load_balancer.subnet_id in subnet_map:
     #         subnet_map[load_balancer.subnet_id].add_load_balancer(load_balancer)
 
+    # print(f"\n✅ 총 {len(vcns)}개의 VCN, {len(subnets)}개의 Subnet, {len(instances)}개의 Instance, {len(load_balancers)}개의 LoadBalancer, {len(backend_sets)}개의 BackendSet가 파싱되었습니다.\n")
+
+def main():
+    tfstate_path = os.getenv("TFSTATE_PATH")	
+    #tfstate_path = os.path.join("data", "v2-heal.json")
+
+    if not os.path.exists(tfstate_path):
+        print(f"❌ tfstate 파일이 존재하지 않습니다: {tfstate_path}")
+        return
+
+    with open(tfstate_path, "r") as f:
+        tfstate = json.load(f)
+
+    vcns = ""
+    nsgs = ""
+
+    if cloud_provider == "oci" :
+        vcns, subnets, instances, load_balancers, backends, backend_set, listeners, nsgs = parser.oci_parser(tfstate)
+        asset_mapping(vcns, subnets, instances, load_balancers, backends, backend_set, listeners, nsgs)
+
 
 ####################################################################################
-
-    # print(f"\n✅ 총 {len(vcns)}개의 VCN, {len(subnets)}개의 Subnet, {len(instances)}개의 Instance, {len(load_balancers)}개의 LoadBalancer, {len(backend_sets)}개의 BackendSet가 파싱되었습니다.\n")
 
     # # VCN 및 Subnet 출력
     for vcn in vcns:
@@ -418,7 +266,10 @@ def main():
     render_diagram(vcns, nsgs)
 
     # NSG와 규칙을 표로 출력
-    # print_nsg_table(nsgs)
+    print_nsg_table(nsgs)
+    print(tfstate_path)
+    print(diagram_filename)
+    print(cloud_provider)
 
 if __name__ == "__main__":
     main()

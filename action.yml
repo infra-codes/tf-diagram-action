@@ -1,0 +1,23 @@
+name: "Generate Terraform Diagram"
+description: "Parses tfstate and outputs diagram"
+inputs:
+  tfstate_path:
+    description: "Path to terraform.tfstate.json"
+    required: true
+    default: /infra/terraform.tfstate.json
+  output_path:
+    description: "Where to save diagram (e.g. /output/diagram.png)"
+    required: true
+    default: /output/diagram
+  cloud_provider:
+    description: "Cloud provider (e.g. oci, aws)"
+    required: false
+    default: oci
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  env:
+    TFSTATE_PATH: ${{ inputs.tfstate_path }}
+    OUTPUT_PATH: ${{ inputs.output_path }}
+    CLOUD_PROVIDER: ${{ inputs.cloud_provider }}
+  args: []

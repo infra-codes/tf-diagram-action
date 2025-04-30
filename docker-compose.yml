@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  tf-diagram:
+    image: tf-diagram
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./infra:/infra
+      - ./output:/output
+    container_name: tf-diagram
+    environment:
+      - TFSTATE_PATH=${TFSTATE_PATH}
+      - DIAGRAM_FILENAME=${DIAGRAM_FILENAME}
+      - CLOUD_PROVIDER=${CLOUD_PROVIDER}
+    restart: "no"

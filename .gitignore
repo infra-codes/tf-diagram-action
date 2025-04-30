@@ -1,6 +1,5 @@
-data/
+infra/*.json
 .env
-*.png
 __pycache__/
 *.pyc
 
