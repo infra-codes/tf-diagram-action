@@ -10,11 +10,13 @@ This GitHub Action parses a terraform.tfstate file and generates an infrastructu
 |---------------|----------|------------------------------------|
 | tfstate_path  | ✅        | Path to terraform.tfstate.json     |
 | output_path   | ✅        | Path to save diagram (PNG)         |
+| cloud_provider| ✅        | Where did you make terraform (PNG) |
 
 ## Example
 
 ```yaml
 - uses: your-username/tf-diagram-action@v1
   with:
-    tfstate_path: ./data/terraform.tfstate.json
+    tfstate_path: ./infra/terraform.tfstate.json
     output_path: ./output/diagram.png
+    cloud_provider: oci
