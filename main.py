@@ -26,7 +26,7 @@ CHUNK_SIZE = 2
 
 load_dotenv()
 # tfstate_path = os.getenv("TFSTATE_PATH")
-diagram_filename = os.getenv("DIAGRAM_FILENAME")
+diagram_filename = os.getenv("OUTPUT_PATH")
 
 timestamp = datetime.now().strftime("%Y%m%d%H")
 diagram_filename = f"{diagram_filename}_{timestamp}"
