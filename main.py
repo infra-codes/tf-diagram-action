@@ -138,9 +138,9 @@ def render_diagram(vcns, nsgs):
                                             readable_nsgs = [NSG.get_name_by_id(nsg_id) for nsg_id in instance.nsg_ids]
                                             lines.append(f"nsg: {', '.join(readable_nsgs)}")
                                         if instance.ocpus and instance.memory:
-                                            lines.append(f"{instance.ocpus}M {instance.memory}GB")
+                                            lines.append(f"{instance.ocpus}VCPU {instance.memory}GB")
                                         if instance.boot_volume_size:
-                                            lines.append(f"BVol: {instance.boot_volume_size}GB")
+                                            lines.append(f"BootV: {instance.boot_volume_size}GB")
                                         label = "\n".join(lines)
                                         instance_racks.append(Rack(label))
 
