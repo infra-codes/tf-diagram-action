@@ -131,7 +131,7 @@ def render_diagram(vcns, nsgs):
 
                                 else:
                                     for instance in subnet.instances:
-                                        lines = [f"{instance.name}", f"{instance.private_ip}"]
+                                        lines = [f"{instance.name}", f"priv: {instance.private_ip}"]
                                         if instance.public_ip:
                                             lines.append(f"pub: {instance.public_ip}")
                                         if instance.nsg_ids:
